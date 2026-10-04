@@ -9,6 +9,14 @@ import requests
 
 import steam_api
 
+# Консоль Windows по умолчанию использует cp1252/cp866 и падает на кириллице —
+# переключаем stdout/stderr в UTF-8, чтобы отладочные сообщения не роняли скрипт.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+
 PROFILE = sys.argv[1] if len(sys.argv) > 1 else "https://steamcommunity.com/profiles/76561198037462574/"
 
 ident = steam_api._extract_steamid_from_input(PROFILE)
