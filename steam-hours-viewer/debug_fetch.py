@@ -31,6 +31,17 @@ headers = steam_api._browser_like_headers(base_url)
 warm = session.get(base_url, headers=headers, timeout=20)
 print("warm-up status:", warm.status_code, "cookies:", dict(session.cookies))
 
+# Отдельно смотрим на БАЗОВЫЙ XML профиля (ник/аватар) — он не связан с
+# разделом "Сведения об игре" и обычно содержит privacyState/visibilityState,
+# по которым можно понять, публичен ли профиль вообще.
+try:
+    base_xml_resp = session.get(base_url + "?xml=1", headers=headers, timeout=20)
+    print("\n--- BASE PROFILE XML (status", base_xml_resp.status_code, ") ---")
+    print(base_xml_resp.text[:3000])
+    print("--- END BASE PROFILE XML ---\n")
+except Exception as e:  # noqa: BLE001
+    print("base profile xml fetch failed:", e)
+
 resp = session.get(url, headers=headers, timeout=20)
 print("status:", resp.status_code)
 print("encoding guessed by requests:", resp.encoding)
