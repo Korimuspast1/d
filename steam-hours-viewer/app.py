@@ -534,17 +534,7 @@ class MainApp(tk.Tk):
                 f"({e})"
             )
         except steam_api.SteamXmlUnavailableError as e:
-            games, error = [], (
-                "Steam сейчас отдаёт вместо данных обычную HTML-страницу — это "
-                "нестабильность старого публичного XML API Steam, она не зависит "
-                "от настроек вашего профиля и может то появляться, то исчезать.\n\n"
-                "Самое надёжное решение: откройте «Настройки профиля» и укажите "
-                "свой Steam Web API ключ (получить за 20 секунд: "
-                "https://steamcommunity.com/dev/apikey) — с ключом данные "
-                "загружаются напрямую через официальный Steam Web API и не "
-                "зависят от этой проблемы.\n\n"
-                f"({e})"
-            )
+            games, error = [], str(e)
         except steam_api.ProfileNotFoundError as e:
             games, error = [], f"Профиль не найден: {e}"
         except requests.RequestException as e:
