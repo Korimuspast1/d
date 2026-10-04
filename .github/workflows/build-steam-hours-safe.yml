@@ -1,0 +1,40 @@
+name: Build SteamHoursSafe Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/01a1048e-d]
+    paths:
+      - steam_hours_safe.py
+      - test_steam_hours_safe.py
+      - .github/workflows/build-steam-hours-safe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+          cache: pip
+      - name: Run tests
+        run: python -m unittest -v
+      - name: Install pinned builder
+        run: python -m pip install --disable-pip-version-check pyinstaller==6.16.0
+      - name: Build
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name SteamHoursSafe steam_hours_safe.py
+      - name: Record SHA-256
+        shell: powershell
+        run: Get-FileHash dist/SteamHoursSafe.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SteamHoursSafe-windows-x64
+          path: |
+            dist/SteamHoursSafe.exe
+            dist/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
