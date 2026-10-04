@@ -1,24 +1,11 @@
 Base URL: https://steamcommunity.com/profiles/76561198037462574/
 XML URL: https://steamcommunity.com/profiles/76561198037462574/games?tab=all&xml=1
-warm-up status: 200 cookies: {'sessionid': '6240a98df6c254274dd4aebe', 'steamCountry': 'US%7Cc0e2a321443539da62c1e6d5aa331036'}
+warm-up status: 200 cookies: {'sessionid': 'f1d2f2511934f5af67e3f2df', 'steamCountry': 'US%7Ce6a9b5dc6353834c402d382a3924b52e'}
 status: 200
 encoding guessed by requests: UTF-8
 bytes length: 52724
-Traceback (most recent call last):
-  File "D:\a\d\d\steam-hours-viewer\debug_fetch.py", line 52, in <module>
-    games = steam_api._parse_games_xml(data)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\a\d\d\steam-hours-viewer\steam_api.py", line 158, in _parse_games_xml
-    raise SteamXmlUnavailableError(
-steam_api.SteamXmlUnavailableError: Steam Community \u0432\u043c\u0435\u0441\u0442\u043e XML \u0441 \u0434\u0430\u043d\u043d\u044b\u043c\u0438 \u0432\u0435\u0440\u043d\u0443\u043b \u043e\u0431\u044b\u0447\u043d\u0443\u044e HTML-\u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443 \u0441\u0430\u0439\u0442\u0430. \u042d\u0442\u043e \u0438\u0437\u0432\u0435\u0441\u0442\u043d\u0430\u044f \u043d\u0435\u0441\u0442\u0430\u0431\u0438\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u0443\u0441\u0442\u0430\u0440\u0435\u0432\u0448\u0435\u0433\u043e \u043f\u0443\u0431\u043b\u0438\u0447\u043d\u043e\u0433\u043e XML API Steam \u0438 \u043d\u0435 \u0441\u0432\u044f\u0437\u0430\u043d\u0430 \u0441 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430\u043c\u0438 \u043f\u0440\u0438\u0432\u0430\u0442\u043d\u043e\u0441\u0442\u0438 \u0438\u043c\u0435\u043d\u043d\u043e \u0432\u0430\u0448\u0435\u0433\u043e \u043f\u0440\u043e\u0444\u0438\u043b\u044f. \u0421\u0430\u043c\u043e\u0435 \u043d\u0430\u0434\u0451\u0436\u043d\u043e\u0435 \u0440\u0435\u0448\u0435\u043d\u0438\u0435 � \u0443\u043a\u0430\u0437\u0430\u0442\u044c \u0441\u0432\u043e\u0439 Steam Web API \u043a\u043b\u044e\u0447 \u0432 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430\u0445 \u043f\u0440\u043e\u0444\u0438\u043b\u044f (\u043a\u043d\u043e\u043f\u043a\u0430 �\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u043f\u0440\u043e\u0444\u0438\u043b\u044f� -> \u043f\u043e\u043b\u0443\u0447\u0438\u0442\u044c \u043a\u043b\u044e\u0447: https://steamcommunity.com/dev/apikey).
+PARSE: STILL BLOCKED (html-looking response): Steam Community вместо XML со списком игр вернул обычную HTML-страницу сайта.
 
-During handling of the above exception, another exception occurred:
+Наиболее вероятная причина: в настройках приватности профиля раздел «Сведения об игре» не установлен в «Открыто» (Public) — например стоит «Только для друзей». Проверьте: Steam -> ваш профиль -> Изменить профиль -> Настройки приватности -> «Сведения об игре» = Открыто для всех.
 
-Traceback (most recent call last):
-  File "D:\a\d\d\steam-hours-viewer\debug_fetch.py", line 55, in <module>
-    print("PARSE: STILL BLOCKED (html-looking response):", e)
-  File "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\encodings\cp1252.py", line 19, in encode
-    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-UnicodeEncodeError: 'charmap' codec can't encode characters in position 16-21: character maps to <undefined>
-PARSE: STILL BLOCKED (html-looking response): 
+Если приватность уже открыта, а ошибка всё равно появляется — это нестабильность устаревшего публичного XML API Steam. В этом случае надёжнее указать свой Steam Web API ключ в настройках профиля (получить: https://steamcommunity.com/dev/apikey).
