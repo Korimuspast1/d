@@ -33,9 +33,9 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          python debug_fetch.py "https://steamcommunity.com/profiles/76561198037462574/" > release/debug_log.txt 2>&1
-          Get-Content release/debug_log.txt
+          New-Item -ItemType Directory -Force -Path ci_debug | Out-Null
+          python debug_fetch.py "https://steamcommunity.com/profiles/76561198037462574/" > ci_debug/debug_log.txt 2>&1
+          Get-Content ci_debug/debug_log.txt
 
       - name: Seed config with real profile
         shell: pwsh
@@ -61,8 +61,8 @@ jobs:
           $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
           $g = [System.Drawing.Graphics]::FromImage($bmp)
           $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-          New-Item -ItemType Directory -Force -Path "release" | Out-Null
-          $bmp.Save("release\ui_screenshot.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          New-Item -ItemType Directory -Force -Path "ci_debug" | Out-Null
+          $bmp.Save("ci_debug\ui_screenshot.png", [System.Drawing.Imaging.ImageFormat]::Png)
 
       - name: Dump app console output (if any error)
         shell: pwsh
@@ -86,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshot
-          path: steam-hours-viewer/release/ui_screenshot.png
+          path: steam-hours-viewer/ci_debug/ui_screenshot.png
 
       - name: Commit screenshot back to repo
         if: always()
@@ -95,7 +95,7 @@ jobs:
           cd ..
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add steam-hours-viewer/release/ui_screenshot.png steam-hours-viewer/release/debug_log.txt steam-hours-viewer/release/debug_raw.xml steam-hours-viewer/release/debug_cleaned.xml
+          git add steam-hours-viewer/ci_debug/ui_screenshot.png steam-hours-viewer/ci_debug/debug_log.txt steam-hours-viewer/ci_debug/debug_raw.xml steam-hours-viewer/ci_debug/debug_cleaned.xml
           git commit -m "[skip ci] Debug: UI screenshot + XML diagnostics from CI" || echo "nothing to commit"
           for i in 1 2 3 4 5 6 7 8; do
             git fetch origin ${{ github.ref_name }}
@@ -103,5 +103,3 @@ jobs:
             git rebase --abort || true
             sleep $((RANDOM % 8 + 3))
           done
-# v2
-# v3
