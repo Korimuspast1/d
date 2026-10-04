@@ -1,0 +1,92 @@
+name: UI Screenshot (debug helper)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - arena/01a10462-d
+    paths:
+      - '.github/workflows/ui-screenshot.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  screenshot:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: steam-hours-viewer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pillow
+
+      - name: Seed config with real profile
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:APPDATA "SteamHoursViewer"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $cfg = @{ profile = "https://steamcommunity.com/profiles/76561198037462574/" } | ConvertTo-Json
+          Set-Content -Path (Join-Path $dir "config.json") -Value $cfg -Encoding utf8
+
+      - name: Launch app
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath python -ArgumentList "app.py" -WorkingDirectory "$pwd" -PassThru
+          $proc.Id | Out-File -FilePath "$env:RUNNER_TEMP\app.pid"
+          Start-Sleep -Seconds 20
+
+      - name: Take screenshot
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -AssemblyName System.Drawing
+          $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          New-Item -ItemType Directory -Force -Path "release" | Out-Null
+          $bmp.Save("release\ui_screenshot.png", [System.Drawing.Imaging.ImageFormat]::Png)
+
+      - name: Dump app console output (if any error)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Get-Process python -ErrorAction SilentlyContinue | Format-List *
+
+      - name: Stop app
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $pidPath = "$env:RUNNER_TEMP\app.pid"
+          if (Test-Path $pidPath) {
+            $procId = Get-Content $pidPath
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+          }
+          Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshot
+          path: steam-hours-viewer/release/ui_screenshot.png
+
+      - name: Commit screenshot back to repo
+        if: always()
+        shell: bash
+        run: |
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add steam-hours-viewer/release/ui_screenshot.png
+          git commit -m "[skip ci] Debug: UI screenshot from CI" || echo "nothing to commit"
+          git push origin HEAD:${{ github.ref_name }}

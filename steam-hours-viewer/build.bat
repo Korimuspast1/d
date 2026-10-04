@@ -24,15 +24,15 @@ if not exist venv (
 
 call venv\Scripts\activate.bat
 
-echo [*] Устанавливаю зависимости (requests, pyinstaller)...
+echo [*] Устанавливаю зависимости (requests, pillow, pyinstaller)...
 pip install --quiet --upgrade pip
-pip install --quiet requests pyinstaller
+pip install --quiet requests pillow pyinstaller
 
 echo [*] Собираю SteamHoursViewer.exe ...
 set ICON_ARG=
 if exist assets\app.ico set ICON_ARG=--icon=assets\app.ico
 
-pyinstaller --noconfirm --onefile --windowed --name SteamHoursViewer %ICON_ARG% app.py
+pyinstaller --noconfirm --onefile --windowed --name SteamHoursViewer %ICON_ARG% --add-data "assets;assets" app.py
 
 echo.
 if exist dist\SteamHoursViewer.exe (

@@ -28,10 +28,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pyinstaller
+          pip install requests pillow pyinstaller
       - name: Build EXE
         run: |
-          pyinstaller --noconfirm --onefile --windowed --name SteamHoursViewer --icon=assets/app.ico app.py
+          pyinstaller --noconfirm --onefile --windowed --name SteamHoursViewer --icon=assets/app.ico --add-data "assets;assets" app.py
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

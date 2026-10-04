@@ -24,7 +24,7 @@ call venv\Scripts\activate.bat
 
 echo [*] Проверяю/устанавливаю зависимости...
 pip install --quiet --upgrade pip
-pip install --quiet requests
+pip install --quiet requests pillow
 
 echo [*] Запускаю Steam Hours Viewer...
 python app.py

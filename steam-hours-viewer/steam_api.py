@@ -91,15 +91,43 @@ def _build_xml_url(ident: str) -> str:
     return f"https://steamcommunity.com/id/{ident}/games?tab=all&xml=1"
 
 
-def _parse_games_xml(xml_text: str) -> List[Game]:
-    xml_text = xml_text.strip()
-    if not xml_text:
+def _sanitize_xml_bytes(data: bytes) -> bytes:
+    """Steam иногда отдаёт XML с мусором, который формально невалиден:
+    - управляющие символы, недопустимые в XML 1.0 (например из названий
+      игр с кириллицей/эмодзи/битой кодировкой);
+    - "голые" амперсанды, не экранированные как &amp; (встречается в
+      названиях некоторых игр/DLC).
+    Эта функция чистит самые частые причины ошибки
+    'not well-formed (invalid token)', не трогая валидный XML.
+    """
+    # Убираем запрещённые в XML 1.0 управляющие символы (кроме \t \n \r)
+    data = re.sub(rb"[\x00-\x08\x0B\x0C\x0E-\x1F]", b"", data)
+
+    # Экранируем "голые" амперсанды: & не являющийся началом сущности
+    # (&amp; &lt; &gt; &quot; &apos; &#123; &#x1F;)
+    data = re.sub(rb"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9A-Fa-f]+;)", b"&amp;", data)
+
+    return data
+
+
+def _parse_games_xml(xml_data) -> List[Game]:
+    if isinstance(xml_data, str):
+        xml_data = xml_data.encode("utf-8", errors="replace")
+
+    xml_data = xml_data.strip()
+    if not xml_data:
         raise SteamApiError("Пустой ответ от Steam")
 
     try:
-        root = ET.fromstring(xml_text)
-    except ET.ParseError as exc:
-        raise SteamApiError(f"Не удалось разобрать XML ответа Steam: {exc}") from exc
+        root = ET.fromstring(xml_data)
+    except ET.ParseError:
+        # Пробуем автоматически исправить типичный "битый" XML от Steam
+        # и разобрать ещё раз, прежде чем сдаваться.
+        try:
+            root = ET.fromstring(_sanitize_xml_bytes(xml_data))
+        except ET.ParseError as exc:
+            raise SteamApiError(f"Не удалось разобрать XML ответа Steam: {exc}") from exc
+
 
     # Steam отдаёт <response><error>...</error></response> если профиль
     # не найден или приватен
@@ -170,7 +198,45 @@ def fetch_games_via_xml(profile: str, session: Optional[requests.Session] = None
         raise ProfileNotFoundError("Профиль не найден (404). Проверьте ссылку / SteamID.")
     resp.raise_for_status()
 
-    return _parse_games_xml(resp.text)
+    # Используем "сырые" байты, а не resp.text — так ElementTree сам
+    # разбирает декларацию кодировки из XML-пролога и не зависит от того,
+    # правильно ли requests угадал кодировку ответа.
+    return _parse_games_xml(resp.content)
+
+
+@dataclass
+class ProfileInfo:
+    display_name: str = ""
+    avatar_url: str = ""
+    steamid64: str = ""
+
+
+def fetch_profile_info(profile: str, session: Optional[requests.Session] = None) -> ProfileInfo:
+    """Получает ник и аватар профиля через публичный XML Steam Community
+    (отдельный от списка игр эндпоинт)."""
+    ident = _extract_steamid_from_input(profile)
+    if re.fullmatch(r"\d{17}", ident):
+        url = f"https://steamcommunity.com/profiles/{ident}/?xml=1"
+    else:
+        url = f"https://steamcommunity.com/id/{ident}/?xml=1"
+
+    sess = session or requests.Session()
+    try:
+        resp = sess.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.content
+        try:
+            root = ET.fromstring(data)
+        except ET.ParseError:
+            root = ET.fromstring(_sanitize_xml_bytes(data))
+
+        info = ProfileInfo()
+        info.display_name = (root.findtext("steamID") or "").strip()
+        info.avatar_url = (root.findtext("avatarFull") or root.findtext("avatarMedium") or "").strip()
+        info.steamid64 = (root.findtext("steamID64") or "").strip()
+        return info
+    except Exception:  # noqa: BLE001
+        return ProfileInfo()
 
 
 def resolve_vanity_to_steamid64(vanity: str, api_key: str, session: Optional[requests.Session] = None) -> str:

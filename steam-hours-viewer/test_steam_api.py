@@ -99,6 +99,53 @@ def test_apply_overrides():
     assert games[0].display_hours == 7777.0
 
 
+def test_parse_games_xml_with_bare_ampersand():
+    xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<response>
+  <games>
+    <game>
+      <appID>1</appID>
+      <name><![CDATA[Tom & Jerry]]></name>
+      <hoursOnRecord>10</hoursOnRecord>
+    </game>
+  </games>
+</response>
+"""
+    games = steam_api._parse_games_xml(xml)
+    assert games[0].name == "Tom & Jerry"
+
+
+def test_parse_games_xml_with_invalid_control_char():
+    # \x02 is an invalid XML 1.0 character and will break strict parsing
+    xml_bytes = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+        b"<response><games><game><appID>2</appID>"
+        b"<name><![CDATA[Broken\x02Name]]></name>"
+        b"<hoursOnRecord>5</hoursOnRecord></game></games></response>"
+    )
+    games = steam_api._parse_games_xml(xml_bytes)
+    assert len(games) == 1
+    assert games[0].appid == 2
+
+
+def test_parse_games_xml_with_raw_bad_ampersand_bytes():
+    xml_bytes = (
+        b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>\n'
+        b"<response><games><game><appID>3</appID>"
+        b"<name>Test & Co</name>"
+        b"<hoursOnRecord>7</hoursOnRecord></game></games></response>"
+    )
+    games = steam_api._parse_games_xml(xml_bytes)
+    assert len(games) == 1
+    assert games[0].name == "Test & Co"
+
+
+def test_sanitize_xml_bytes_escapes_bare_ampersand():
+    data = b"<a>Tom & Jerry &amp; Friends</a>"
+    cleaned = steam_api._sanitize_xml_bytes(data)
+    assert cleaned == b"<a>Tom &amp; Jerry &amp; Friends</a>"
+
+
 def test_parse_hours_string_variants():
     assert steam_api._parse_hours_string("1,234.5") == 1234.5
     assert steam_api._parse_hours_string("") == 0.0
