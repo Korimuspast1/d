@@ -2,12 +2,9 @@ name: Build Windows EXE
 
 on:
   workflow_dispatch: {}
-  push:
-    branches:
-      - arena/01a10462-d
-    paths:
-      - 'steam-hours-viewer/**'
-      - '.github/workflows/build-exe.yml'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -17,6 +14,8 @@ jobs:
         working-directory: steam-hours-viewer
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -32,3 +31,14 @@ jobs:
         with:
           name: SteamHoursViewer-windows-exe
           path: steam-hours-viewer/dist/SteamHoursViewer.exe
+      - name: Commit exe back to repo
+        shell: bash
+        run: |
+          mkdir -p release
+          cp dist/SteamHoursViewer.exe release/SteamHoursViewer.exe
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add steam-hours-viewer/release/SteamHoursViewer.exe
+          git commit -m "[skip ci] Release build: SteamHoursViewer.exe" || echo "nothing to commit"
+          git push origin HEAD:${{ github.ref_name }}
