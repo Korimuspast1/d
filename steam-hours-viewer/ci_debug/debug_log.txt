@@ -1,6 +1,6 @@
 Base URL: https://steamcommunity.com/profiles/76561198037462574/
 XML URL: https://steamcommunity.com/profiles/76561198037462574/games?tab=all&xml=1
-warm-up status: 200 cookies: {'sessionid': 'ba52fdf236ef3fb860c47f0e', 'steamCountry': 'US%7C713d73dc9ad3d9dddef90266416b91cb'}
+warm-up status: 200 cookies: {'sessionid': 'f7d204803fca0fe8a78615e3', 'steamCountry': 'US%7Cce05a93d608cca33bed9b31d5f053704'}
 
 --- BASE PROFILE XML (status 200 ) ---
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?><profile>
