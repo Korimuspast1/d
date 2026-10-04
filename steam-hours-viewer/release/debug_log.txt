@@ -1,0 +1,14 @@
+URL: https://steamcommunity.com/profiles/76561198037462574/games?tab=all&xml=1
+status: 200
+encoding guessed by requests: UTF-8
+bytes length: 52724
+RAW PARSE: FAILED
+ParseError at line 57, column 44: not well-formed (invalid token): line 57, column 44
+Context bytes: b'<script type="text/javascript">Object.seal && [ Object, Array, String, Number ].map( function( builtin )'
+Context repr : b'<script type="text/javascript">Object.seal && [ Object, Array, String, Number ].map( function( builtin )'
+Byte at column: 0x26
+CLEANED PARSE: FAILED
+ParseError at line 58, column 88: not well-formed (invalid token): line 58, column 88
+Context bytes: b' || !JSON.stringify || !JSON.parse ) { document.write( "<scr" + "ipt type=\\"text\\/javascript\\" src=\\"https:\\/\\/community'
+Context repr : b' || !JSON.stringify || !JSON.parse ) { document.write( "<scr" + "ipt type=\\"text\\/javascript\\" src=\\"https:\\/\\/community'
+Byte at column: 0x22
