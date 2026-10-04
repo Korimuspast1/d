@@ -517,14 +517,16 @@ class MainApp(tk.Tk):
         threading.Thread(target=self._fetch_worker, args=(profile, self.cfg.get("api_key") or None), daemon=True).start()
 
     def _fetch_worker(self, profile: str, api_key: Optional[str]):
+        session = requests.Session()
+
         profile_info = None
         try:
-            profile_info = steam_api.fetch_profile_info(profile)
+            profile_info = steam_api.fetch_profile_info(profile, session=session)
         except Exception:  # noqa: BLE001
             pass
 
         try:
-            games = steam_api.fetch_games(profile, api_key)
+            games = steam_api.fetch_games(profile, api_key, session=session)
             error = None
         except steam_api.ProfilePrivateError as e:
             games, error = [], (

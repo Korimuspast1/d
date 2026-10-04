@@ -26,7 +26,26 @@ from typing import List, Optional
 import requests
 
 USER_AGENT = "SteamHoursViewer/1.0 (+https://store.steampowered.com)"
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+)
 REQUEST_TIMEOUT = 12
+
+
+def _browser_like_headers(referer: str) -> dict:
+    """Заголовки, максимально похожие на настоящий браузер — чтобы снизить
+    шанс того, что Steam отдаст анти-бот/JS-страницу вместо XML."""
+    return {
+        "User-Agent": BROWSER_USER_AGENT,
+        "Accept": "text/xml,application/xml,text/html;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,ru;q=0.8",
+        "Referer": referer,
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Dest": "document",
+        "Upgrade-Insecure-Requests": "1",
+    }
 
 
 class SteamApiError(Exception):
@@ -213,13 +232,31 @@ def _parse_hours_string(value: str) -> float:
         return 0.0
 
 
+def _base_profile_url(ident: str) -> str:
+    if re.fullmatch(r"\d{17}", ident):
+        return f"https://steamcommunity.com/profiles/{ident}/"
+    return f"https://steamcommunity.com/id/{ident}/"
+
+
 def fetch_games_via_xml(profile: str, session: Optional[requests.Session] = None) -> List[Game]:
     """Получить список игр и часов через публичный XML Steam Community."""
     ident = _extract_steamid_from_input(profile)
+    base_url = _base_profile_url(ident)
     url = _build_xml_url(ident)
 
     sess = session or requests.Session()
-    resp = sess.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+    headers = _browser_like_headers(base_url)
+
+    # Сначала как бы "заходим" на саму страницу профиля — это выдаёт нам
+    # обычные cookie сессии (sessionid/browserid), как у настоящего браузера,
+    # и снижает шанс того, что антибот-защита Steam отдаст вместо XML
+    # HTML-страницу с проверкой.
+    try:
+        sess.get(base_url, headers=headers, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException:
+        pass
+
+    resp = sess.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
 
     if resp.status_code == 404:
         raise ProfileNotFoundError("Профиль не найден (404). Проверьте ссылку / SteamID.")
@@ -242,14 +279,12 @@ def fetch_profile_info(profile: str, session: Optional[requests.Session] = None)
     """Получает ник и аватар профиля через публичный XML Steam Community
     (отдельный от списка игр эндпоинт)."""
     ident = _extract_steamid_from_input(profile)
-    if re.fullmatch(r"\d{17}", ident):
-        url = f"https://steamcommunity.com/profiles/{ident}/?xml=1"
-    else:
-        url = f"https://steamcommunity.com/id/{ident}/?xml=1"
+    base_url = _base_profile_url(ident)
+    url = base_url + "?xml=1"
 
     sess = session or requests.Session()
     try:
-        resp = sess.get(url, headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT)
+        resp = sess.get(url, headers=_browser_like_headers(base_url), timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
         data = resp.content
         try:
@@ -330,13 +365,13 @@ def fetch_games_via_web_api(steamid64: str, api_key: str, session: Optional[requ
     return games
 
 
-def fetch_games(profile: str, api_key: Optional[str] = None) -> List[Game]:
+def fetch_games(profile: str, api_key: Optional[str] = None, session: Optional[requests.Session] = None) -> List[Game]:
     """
     Главная точка входа.
     1. Пытается получить данные через открытый XML (без ключа).
     2. Если не получилось и есть api_key — пробует официальный Web API.
     """
-    session = requests.Session()
+    session = session or requests.Session()
     try:
         return fetch_games_via_xml(profile, session=session)
     except (ProfilePrivateError, ProfileNotFoundError, SteamApiError):
