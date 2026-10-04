@@ -160,6 +160,70 @@ def test_sanitize_xml_bytes_escapes_bare_ampersand():
     assert cleaned == b"<a>Tom &amp; Jerry &amp; Friends</a>"
 
 
+SAMPLE_BASE_PROFILE_XML = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><profile>
+    <steamID64>76561198037462574</steamID64>
+    <steamID><![CDATA[Jazz]]></steamID>
+    <privacyState>public</privacyState>
+    <visibilityState>3</visibilityState>
+    <mostPlayedGames>
+        <mostPlayedGame>
+            <gameName><![CDATA[BeamNG.drive]]></gameName>
+            <gameLink><![CDATA[https://steamcommunity.com/app/284160]]></gameLink>
+            <gameLogo><![CDATA[http://example.com/284160.jpg]]></gameLogo>
+            <hoursPlayed>8.6</hoursPlayed>
+            <hoursOnRecord>272</hoursOnRecord>
+            <statsName><![CDATA[284160]]></statsName>
+        </mostPlayedGame>
+        <mostPlayedGame>
+            <gameName><![CDATA[Crusader Kings III]]></gameName>
+            <gameLogo><![CDATA[http://example.com/1158310.jpg]]></gameLogo>
+            <hoursPlayed>3.7</hoursPlayed>
+            <hoursOnRecord>1,402</hoursOnRecord>
+            <statsName><![CDATA[1158310]]></statsName>
+        </mostPlayedGame>
+    </mostPlayedGames>
+</profile>
+"""
+
+
+def test_parse_most_played_games():
+    games = steam_api.parse_most_played_games(SAMPLE_BASE_PROFILE_XML)
+    assert len(games) == 2
+    beamng = next(g for g in games if g.appid == 284160)
+    assert beamng.name == "BeamNG.drive"
+    assert beamng.hours_official == 272.0
+    assert beamng.hours_last_2weeks == 8.6
+    ck3 = next(g for g in games if g.appid == 1158310)
+    assert ck3.hours_official == 1402.0
+
+
+def test_parse_most_played_games_empty_when_missing():
+    xml = '<?xml version="1.0"?><profile><steamID64>1</steamID64></profile>'
+    assert steam_api.parse_most_played_games(xml) == []
+
+
+def test_custom_games_roundtrip():
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "custom_games.json")
+        assert steam_api.load_custom_games(path) == []
+
+        games = [
+            steam_api.Game(appid=-1, name="My Fake Game", hours_official=1500.0),
+            steam_api.Game(appid=-2, name="Another One", hours_official=42.5),
+        ]
+        steam_api.save_custom_games(path, games)
+        loaded = steam_api.load_custom_games(path)
+        assert len(loaded) == 2
+        assert {g.name for g in loaded} == {"My Fake Game", "Another One"}
+        assert all(g.appid < 0 for g in loaded)
+
+
+def test_next_custom_appid():
+    assert steam_api.next_custom_appid([]) == steam_api.CUSTOM_GAME_APPID_START
+    existing = [steam_api.Game(appid=-1, name="A", hours_official=1), steam_api.Game(appid=-3, name="B", hours_official=2)]
+    assert steam_api.next_custom_appid(existing) == -4
+
+
 def test_parse_hours_string_variants():
     assert steam_api._parse_hours_string("1,234.5") == 1234.5
     assert steam_api._parse_hours_string("") == 0.0

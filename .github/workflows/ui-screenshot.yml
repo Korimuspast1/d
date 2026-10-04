@@ -37,13 +37,15 @@ jobs:
           python debug_fetch.py "https://steamcommunity.com/profiles/76561198037462574/" > ci_debug/debug_log.txt 2>&1
           Get-Content ci_debug/debug_log.txt
 
-      - name: Seed config with real profile
+      - name: Seed config with real profile + a sample custom game
         shell: pwsh
         run: |
           $dir = Join-Path $env:APPDATA "SteamHoursViewer"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           $cfg = @{ profile = "https://steamcommunity.com/profiles/76561198037462574/" } | ConvertTo-Json
           Set-Content -Path (Join-Path $dir "config.json") -Value $cfg -Encoding utf8
+          $customJson = '[{"appid": -1, "name": "Моя любимая игра", "hours": 1500}]'
+          Set-Content -Path (Join-Path $dir "custom_games.json") -Value $customJson -Encoding utf8
 
       - name: Launch app
         shell: pwsh
@@ -103,5 +105,3 @@ jobs:
             git rebase --abort || true
             sleep $((RANDOM % 8 + 3))
           done
-# verify
-# verify2

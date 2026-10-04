@@ -371,6 +371,102 @@ def fetch_games_via_web_api(steamid64: str, api_key: str, session: Optional[requ
     return games
 
 
+CUSTOM_APPID_BASE = 2_000_000_000  # синтетические appid для "своих" игр и топ-игр без statsName
+
+
+def parse_most_played_games(xml_data) -> List[Game]:
+    """Разбирает блок <mostPlayedGames> из БАЗОВОГО XML профиля
+    (steamcommunity.com/.../?xml=1). Этот блок почти всегда доступен и
+    содержит несколько последних/самых играемых игр с реальными часами —
+    даже когда отдельный эндпоинт games?tab=all&xml=1 недоступен."""
+    if isinstance(xml_data, str):
+        xml_data = xml_data.encode("utf-8", errors="replace")
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError:
+        root = ET.fromstring(_sanitize_xml_bytes(xml_data))
+
+    games: List[Game] = []
+    mp = root.find("mostPlayedGames")
+    if mp is None:
+        return games
+
+    for idx, g in enumerate(mp.findall("mostPlayedGame")):
+        name = (g.findtext("gameName") or "").strip()
+        stats_name = (g.findtext("statsName") or "").strip()
+        hours_text = (g.findtext("hoursOnRecord") or "0").strip()
+        hours_2w_text = (g.findtext("hoursPlayed") or "0").strip()
+        logo = (g.findtext("gameLogo") or g.findtext("gameIcon") or "").strip()
+
+        try:
+            appid = int(stats_name)
+        except ValueError:
+            appid = CUSTOM_APPID_BASE + idx
+
+        games.append(
+            Game(
+                appid=appid,
+                name=name or f"App {appid}",
+                hours_official=_parse_hours_string(hours_text),
+                hours_last_2weeks=_parse_hours_string(hours_2w_text),
+                logo_url=logo,
+            )
+        )
+    return games
+
+
+def fetch_most_played_games(profile: str, session: Optional[requests.Session] = None) -> List[Game]:
+    """Получает список самых играемых игр через базовый (обычно стабильно
+    работающий) XML профиля — запасной вариант, когда полный список игр
+    недоступен."""
+    ident = _extract_steamid_from_input(profile)
+    base_url = _base_profile_url(ident)
+    sess = session or requests.Session()
+    headers = _browser_like_headers(base_url)
+    resp = sess.get(base_url + "?xml=1", headers=headers, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    return parse_most_played_games(resp.content)
+
+
+@dataclass
+class FetchResult:
+    games: List[Game]
+    partial: bool = False  # True, если это неполный список (топ-игр), а не вся библиотека
+    note: Optional[str] = None
+
+
+def fetch_games_best_effort(
+    profile: str, api_key: Optional[str] = None, session: Optional[requests.Session] = None
+) -> FetchResult:
+    """Самый отказоустойчивый способ получить хоть что-то полезное:
+    1. Полный список игр (XML без ключа, либо Web API с ключом).
+    2. Если недоступно и ключа нет — список "самых играемых" игр из базового
+       профиля (это реальные данные Steam, просто не вся библиотека).
+    """
+    sess = session or requests.Session()
+    try:
+        games = fetch_games(profile, api_key, session=sess)
+        return FetchResult(games=games, partial=False)
+    except SteamXmlUnavailableError as e:
+        if api_key:
+            raise
+        try:
+            top_games = fetch_most_played_games(profile, session=sess)
+        except Exception:  # noqa: BLE001
+            top_games = []
+        if top_games:
+            return FetchResult(
+                games=top_games,
+                partial=True,
+                note=(
+                    "Полный список игр сейчас недоступен (нестабильность XML API Steam), "
+                    "но удалось получить ваши самые играемые игры с реальными часами "
+                    f"({len(top_games)} шт.) из общедоступного профиля.\n\n{e}"
+                ),
+            )
+        raise
+
+
 def fetch_games(profile: str, api_key: Optional[str] = None, session: Optional[requests.Session] = None) -> List[Game]:
     """
     Главная точка входа.
@@ -410,3 +506,45 @@ def apply_overrides(games: List[Game], overrides: dict) -> None:
     for game in games:
         if game.appid in overrides:
             game.override_hours = overrides[game.appid]
+
+
+# ---------------------------------------------------------------------------
+# "Свои" игры — добавленные вручную, без привязки к данным из Steam вообще.
+# Нужны, чтобы можно было показать любую игру с любым числом часов, даже
+# если Steam сейчас недоступен / не отдаёт данные / у игры нет статистики.
+# ---------------------------------------------------------------------------
+CUSTOM_GAME_APPID_START = -1  # отрицательные appid зарезервированы под "свои" игры
+
+
+def load_custom_games(path: str) -> List[Game]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+    games = []
+    for item in raw:
+        try:
+            games.append(
+                Game(
+                    appid=int(item["appid"]),
+                    name=str(item["name"]),
+                    hours_official=float(item.get("hours", 0)),
+                )
+            )
+        except (KeyError, ValueError, TypeError):
+            continue
+    return games
+
+
+def save_custom_games(path: str, games: List[Game]) -> None:
+    data = [{"appid": g.appid, "name": g.name, "hours": g.hours_official} for g in games]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def next_custom_appid(existing_custom_games: List[Game]) -> int:
+    if not existing_custom_games:
+        return CUSTOM_GAME_APPID_START
+    return min(g.appid for g in existing_custom_games) - 1

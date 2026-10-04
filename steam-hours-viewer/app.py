@@ -77,6 +77,7 @@ def get_app_data_dir() -> str:
 
 CONFIG_PATH = os.path.join(get_app_data_dir(), "config.json")
 OVERRIDES_PATH = os.path.join(get_app_data_dir(), "overrides.json")
+CUSTOM_GAMES_PATH = os.path.join(get_app_data_dir(), "custom_games.json")
 CACHE_PATH = os.path.join(get_app_data_dir(), "games_cache.json")
 ICON_CACHE_DIR = os.path.join(get_app_data_dir(), "icon_cache")
 os.makedirs(ICON_CACHE_DIR, exist_ok=True)
@@ -304,6 +305,7 @@ class SettingsDialog(tk.Toplevel):
 class EditHoursDialog(tk.Toplevel):
     def __init__(self, parent, game: Game):
         super().__init__(parent)
+        is_custom = game.appid < 0
         self.title(f"Изменить часы — {game.name}")
         self.configure(bg=BG_DARK)
         self.resizable(False, False)
@@ -316,9 +318,14 @@ class EditHoursDialog(tk.Toplevel):
         ttk.Label(self, text=f"Игра: {game.name}", style="Total.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w", **pad
         )
-        ttk.Label(self, text=f"Реальное время в Steam: {game.hours_official:.1f} ч.").grid(
-            row=1, column=0, columnspan=2, sticky="w", **pad
-        )
+        if is_custom:
+            ttk.Label(self, text="Эта игра добавлена вами вручную (не из Steam).").grid(
+                row=1, column=0, columnspan=2, sticky="w", **pad
+            )
+        else:
+            ttk.Label(self, text=f"Реальное время в Steam: {game.hours_official:.1f} ч.").grid(
+                row=1, column=0, columnspan=2, sticky="w", **pad
+            )
 
         ttk.Label(self, text="Отображаемое количество часов:").grid(row=2, column=0, sticky="w", **pad)
         self.value_var = tk.StringVar(value=f"{game.display_hours:.1f}")
@@ -330,7 +337,7 @@ class EditHoursDialog(tk.Toplevel):
         btns = ttk.Frame(self)
         btns.grid(row=3, column=0, columnspan=2, pady=12)
         ttk.Button(btns, text="Сохранить", style="Accent.TButton", command=self._on_save).pack(side="left", padx=6)
-        if game.is_overridden:
+        if game.is_overridden and not is_custom:
             ttk.Button(btns, text="Сбросить к реальным", command=self._on_reset).pack(side="left", padx=6)
         ttk.Button(btns, text="Отмена", command=self.destroy).pack(side="left", padx=6)
 
@@ -350,6 +357,62 @@ class EditHoursDialog(tk.Toplevel):
 
     def _on_reset(self):
         self.reset_requested = True
+        self.destroy()
+
+
+# ---------------------------------------------------------------------------
+# Диалог добавления "своей" игры (не из Steam) — показывать любое число часов
+# для любой игры, даже если Steam её вообще не знает.
+# ---------------------------------------------------------------------------
+class AddCustomGameDialog(tk.Toplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Добавить игру вручную")
+        self.configure(bg=BG_DARK)
+        self.resizable(False, False)
+        self.result: Optional[dict] = None
+        self.transient(parent)
+        self.grab_set()
+
+        pad = {"padx": 10, "pady": 6}
+        ttk.Label(
+            self,
+            text="Эта игра не будет связана со Steam — название и часы\nзадаёте вы сами, здесь же их можно будет изменить позже.",
+            foreground=TEXT_SECONDARY,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", **pad)
+
+        ttk.Label(self, text="Название игры:").grid(row=1, column=0, sticky="w", **pad)
+        self.name_var = tk.StringVar()
+        name_entry = ttk.Entry(self, textvariable=self.name_var, width=32)
+        name_entry.grid(row=1, column=1, sticky="we", **pad)
+
+        ttk.Label(self, text="Количество часов:").grid(row=2, column=0, sticky="w", **pad)
+        self.hours_var = tk.StringVar(value="0")
+        ttk.Entry(self, textvariable=self.hours_var, width=15).grid(row=2, column=1, sticky="w", **pad)
+
+        btns = ttk.Frame(self)
+        btns.grid(row=3, column=0, columnspan=2, pady=12)
+        ttk.Button(btns, text="Добавить", style="Accent.TButton", command=self._on_save).pack(side="left", padx=6)
+        ttk.Button(btns, text="Отмена", command=self.destroy).pack(side="left", padx=6)
+
+        name_entry.focus_set()
+        self.bind("<Return>", lambda e: self._on_save())
+
+    def _on_save(self):
+        name = self.name_var.get().strip()
+        if not name:
+            messagebox.showwarning(APP_NAME, "Введите название игры.")
+            return
+        raw = self.hours_var.get().strip().replace(",", ".")
+        try:
+            hours = float(raw)
+            if hours < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showwarning(APP_NAME, "Введите положительное число часов (например 1500).")
+            return
+        self.result = {"name": name, "hours": round(hours, 1)}
         self.destroy()
 
 
@@ -377,11 +440,13 @@ class MainApp(tk.Tk):
 
         self.cfg = load_config()
         self.overrides: Dict[int, float] = steam_api.load_overrides(OVERRIDES_PATH)
+        self.custom_games: List[Game] = steam_api.load_custom_games(CUSTOM_GAMES_PATH)
         self.games: List[Game] = []
         self.icon_images: Dict[int, "ImageTk.PhotoImage"] = {}
         self.avatar_image = None
 
         self._build_ui()
+        self._rebuild_games_list([])  # сразу показать ранее добавленные "свои" игры
 
         if not self.cfg.get("profile"):
             self.after(200, self._open_settings)
@@ -463,6 +528,7 @@ class MainApp(tk.Tk):
         self.tree.bind("<Double-1>", lambda e: self._edit_selected())
         self.tree.tag_configure("overridden", background=ROW_OVERRIDDEN, foreground="#f0d264")
         self.tree.tag_configure("normal", background=BG_PANEL)
+        self.tree.tag_configure("custom", background="#1d3a2e", foreground="#8fe3a6")
 
         # ------------------------------------------------------------------
         # Нижняя панель
@@ -470,10 +536,12 @@ class MainApp(tk.Tk):
         bottom = tk.Frame(self, bg=BG_DARK, padx=14, pady=8)
         bottom.pack(side="bottom", fill="x")
 
+        ttk.Button(bottom, text="➕ Добавить игру", command=self._add_custom_game).pack(side="left", padx=4)
         ttk.Button(bottom, text="Изменить часы", style="Accent.TButton", command=self._edit_selected).pack(
             side="left", padx=4
         )
         ttk.Button(bottom, text="Сбросить к реальным", command=self._reset_selected).pack(side="left", padx=4)
+        ttk.Button(bottom, text="Удалить", command=self._delete_selected_custom).pack(side="left", padx=4)
         ttk.Button(bottom, text="Сбросить ВСЕ", command=self._reset_all).pack(side="left", padx=4)
 
         self.total_var = tk.StringVar(value="Всего часов: 0")
@@ -525,28 +593,41 @@ class MainApp(tk.Tk):
         except Exception:  # noqa: BLE001
             pass
 
+        partial = False
         try:
-            games = steam_api.fetch_games(profile, api_key, session=session)
-            error = None
+            result = steam_api.fetch_games_best_effort(profile, api_key, session=session)
+            games, error = result.games, None
+            partial = result.partial
+            if partial:
+                error_info = result.note  # показываем как "мягкое" предупреждение, не ошибку
+            else:
+                error_info = None
         except steam_api.ProfilePrivateError as e:
-            games, error = [], (
+            games, error, error_info = [], (
                 "Профиль приватный: Steam не отдаёт список игр.\n"
                 "Откройте в Steam: Профиль -> Правка профиля -> Приватность -> "
                 "'Сведения об игре' = Открыто, либо укажите API-ключ в настройках.\n\n"
                 f"({e})"
-            )
+            ), None
         except steam_api.SteamXmlUnavailableError as e:
-            games, error = [], str(e)
+            games, error, error_info = [], str(e), None
         except steam_api.ProfileNotFoundError as e:
-            games, error = [], f"Профиль не найден: {e}"
+            games, error, error_info = [], f"Профиль не найден: {e}", None
         except requests.RequestException as e:
-            games, error = [], f"Ошибка сети при обращении к Steam: {e}"
+            games, error, error_info = [], f"Ошибка сети при обращении к Steam: {e}", None
         except Exception as e:  # noqa: BLE001
-            games, error = [], f"Непредвиденная ошибка: {e}"
+            games, error, error_info = [], f"Непредвиденная ошибка: {e}", None
 
-        self.after(0, self._on_fetch_done, games, error, profile_info)
+        self.after(0, self._on_fetch_done, games, error, profile_info, partial, error_info)
 
-    def _on_fetch_done(self, games: List[Game], error: Optional[str], profile_info: Optional[ProfileInfo]):
+    def _on_fetch_done(
+        self,
+        games: List[Game],
+        error: Optional[str],
+        profile_info: Optional[ProfileInfo],
+        partial: bool = False,
+        info_note: Optional[str] = None,
+    ):
         if profile_info and profile_info.display_name:
             self.name_var.set(profile_info.display_name)
         if profile_info and profile_info.avatar_url:
@@ -559,18 +640,30 @@ class MainApp(tk.Tk):
                 games = [Game(**{**c}) for c in cached]
             else:
                 messagebox.showerror(APP_NAME, error)
+                self._rebuild_games_list([])
                 return
             messagebox.showwarning(APP_NAME, error)
+        elif partial:
+            self.status_var.set(f"Показан неполный список (топ-{len(games)} игр) — см. пояснение")
+            if info_note:
+                messagebox.showinfo(APP_NAME, info_note)
+            save_cache(games)
         else:
             self.status_var.set(f"Загружено игр: {len(games)}")
             save_cache(games)
 
-        steam_api.apply_overrides(games, self.overrides)
-        self.games = games
-        self._populate_tree()
+        self._rebuild_games_list(games)
 
         if HAS_PIL:
             threading.Thread(target=self._load_icons_worker, args=(list(games),), daemon=True).start()
+
+    def _rebuild_games_list(self, steam_games: List[Game]):
+        """Объединяет полученные от Steam игры со списком добавленных вручную
+        и применяет пользовательские переопределения часов."""
+        combined = list(steam_games) + list(self.custom_games)
+        steam_api.apply_overrides(combined, self.overrides)
+        self.games = combined
+        self._populate_tree()
 
     def _load_avatar_worker(self, url: str):
         try:
@@ -641,14 +734,20 @@ class MainApp(tk.Tk):
 
         games = self._filtered_sorted_games()
         for g in games:
-            status = "изменено" if g.is_overridden else "реальное"
-            tag = "overridden" if g.is_overridden else "normal"
+            is_custom = g.appid < 0
+            if is_custom:
+                status, tag = "своя игра", "custom"
+            elif g.is_overridden:
+                status, tag = "изменено", "overridden"
+            else:
+                status, tag = "реальное", "normal"
             icon = self.icon_images.get(g.appid)
+            label = f"  ✎ {g.name}" if is_custom else f"  {g.name}"
             self.tree.insert(
                 "",
                 "end",
                 iid=str(g.appid),
-                text=f"  {g.name}",
+                text=label,
                 image=icon if icon else "",
                 values=(f"{g.display_hours:.1f} ч.", f"{g.hours_last_2weeks:.1f} ч.", status),
                 tags=(tag,),
@@ -677,6 +776,7 @@ class MainApp(tk.Tk):
         if not game:
             messagebox.showinfo(APP_NAME, "Сначала выберите игру в списке.")
             return
+        is_custom = game.appid < 0
         dlg = EditHoursDialog(self, game)
         self.wait_window(dlg)
         if dlg.reset_requested:
@@ -685,15 +785,25 @@ class MainApp(tk.Tk):
             steam_api.save_overrides(OVERRIDES_PATH, self.overrides)
             self._populate_tree()
         elif dlg.result is not None:
-            self.overrides[game.appid] = dlg.result
-            game.override_hours = dlg.result
-            steam_api.save_overrides(OVERRIDES_PATH, self.overrides)
+            if is_custom:
+                # для "своих" игр значение хранится напрямую, а не как override
+                game.hours_official = dlg.result
+                steam_api.save_custom_games(CUSTOM_GAMES_PATH, self.custom_games)
+            else:
+                self.overrides[game.appid] = dlg.result
+                game.override_hours = dlg.result
+                steam_api.save_overrides(OVERRIDES_PATH, self.overrides)
             self._populate_tree()
 
     def _reset_selected(self):
         game = self._get_selected_game()
         if not game:
             messagebox.showinfo(APP_NAME, "Сначала выберите игру в списке.")
+            return
+        if game.appid < 0:
+            messagebox.showinfo(
+                APP_NAME, "Это ваша добавленная вручную игра — у неё нет \"реального\" значения. Используйте «Удалить»."
+            )
             return
         if game.appid in self.overrides:
             self.overrides.pop(game.appid, None)
@@ -710,6 +820,38 @@ class MainApp(tk.Tk):
                 g.override_hours = None
             steam_api.save_overrides(OVERRIDES_PATH, self.overrides)
             self._populate_tree()
+
+    # ------------------------------------------------------- Custom games -
+    def _add_custom_game(self):
+        dlg = AddCustomGameDialog(self)
+        self.wait_window(dlg)
+        if not dlg.result:
+            return
+        appid = steam_api.next_custom_appid(self.custom_games)
+        game = Game(appid=appid, name=dlg.result["name"], hours_official=dlg.result["hours"])
+        self.custom_games.append(game)
+        steam_api.save_custom_games(CUSTOM_GAMES_PATH, self.custom_games)
+        self.games.append(game)
+        self._populate_tree()
+
+    def _delete_selected_custom(self):
+        game = self._get_selected_game()
+        if not game:
+            messagebox.showinfo(APP_NAME, "Сначала выберите игру в списке.")
+            return
+        if game.appid >= 0:
+            messagebox.showinfo(
+                APP_NAME,
+                "Удалить можно только игры, добавленные вручную. "
+                "Для реальных игр Steam используйте «Сбросить к реальным».",
+            )
+            return
+        if not messagebox.askyesno(APP_NAME, f"Удалить «{game.name}» из списка?"):
+            return
+        self.custom_games = [g for g in self.custom_games if g.appid != game.appid]
+        steam_api.save_custom_games(CUSTOM_GAMES_PATH, self.custom_games)
+        self.games = [g for g in self.games if g.appid != game.appid]
+        self._populate_tree()
 
 
 def main():
