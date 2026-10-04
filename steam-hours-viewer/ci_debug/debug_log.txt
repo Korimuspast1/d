@@ -1,6 +1,56 @@
 Base URL: https://steamcommunity.com/profiles/76561198037462574/
 XML URL: https://steamcommunity.com/profiles/76561198037462574/games?tab=all&xml=1
-warm-up status: 200 cookies: {'sessionid': 'f1d2f2511934f5af67e3f2df', 'steamCountry': 'US%7Ce6a9b5dc6353834c402d382a3924b52e'}
+warm-up status: 200 cookies: {'sessionid': 'ba52fdf236ef3fb860c47f0e', 'steamCountry': 'US%7C713d73dc9ad3d9dddef90266416b91cb'}
+
+--- BASE PROFILE XML (status 200 ) ---
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><profile>
+	<steamID64>76561198037462574</steamID64>
+	<steamID><![CDATA[Jazz]]></steamID>
+	<onlineState>online</onlineState>
+	<stateMessage><![CDATA[Online]]></stateMessage>
+	<privacyState>public</privacyState>
+	<visibilityState>3</visibilityState>
+	<avatarIcon><![CDATA[https://avatars.fastly.steamstatic.com/a467fe7a40d0dbd0af78f33e31e3cdd0ba44f7cc.jpg]]></avatarIcon>
+	<avatarMedium><![CDATA[https://avatars.fastly.steamstatic.com/a467fe7a40d0dbd0af78f33e31e3cdd0ba44f7cc_medium.jpg]]></avatarMedium>
+	<avatarFull><![CDATA[https://avatars.fastly.steamstatic.com/a467fe7a40d0dbd0af78f33e31e3cdd0ba44f7cc_full.jpg]]></avatarFull>
+	<vacBanned>0</vacBanned>
+	<tradeBanState>None</tradeBanState>
+	<isLimitedAccount>0</isLimitedAccount>
+	<customURL><![CDATA[]]></customURL>
+	<memberSince>January 28, 2011</memberSince>
+	<steamRating></steamRating>
+	<hoursPlayed2Wk>0.0</hoursPlayed2Wk>
+	<headline><![CDATA[]]></headline>
+	<location><![CDATA[]]></location>
+	<realname><![CDATA[]]></realname>
+	<summary><![CDATA[]]></summary>
+ 	<mostPlayedGames>
+		<mostPlayedGame>
+			<gameName><![CDATA[BeamNG.drive]]></gameName>
+			<gameLink><![CDATA[https://steamcommunity.com/app/284160]]></gameLink>
+			<gameIcon><![CDATA[https://shared.fastly.steamstatic.com/community_assets/images/apps/284160/34f8997c32b2f463caf2014aab4a95109a896ecc.jpg]]></gameIcon>
+			<gameLogo><![CDATA[https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/284160/727b938bf07eaf615baf2d9bb6ffebca1fa8b5d5/capsule_184x69.jpg?t=1785357623]]></gameLogo>
+			<gameLogoSmall><![CDATA[https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/284160/727b938bf07eaf615baf2d9bb6ffebca1fa8b5d5/capsule_184x69.jpg?t=1785357623]]></gameLogoSmall>
+			<hoursPlayed>8.6</hoursPlayed>
+			<hoursOnRecord>272</hoursOnRecord>
+			<statsName><![CDATA[284160]]></statsName>
+		</mostPlayedGame>
+		<mostPlayedGame>
+			<gameName><![CDATA[Crusader Kings III]]></gameName>
+			<gameLink><![CDATA[https://steamcommunity.com/app/1158310]]></gameLink>
+			<gameIcon><![CDATA[https://shared.fastly.steamstatic.com/community_assets/images/apps/1158310/8a0d88dfaff790ea1aa2b9fcf50d4e3b4f49cf56.jpg]]></gameIcon>
+			<gameLogo><![CDATA[https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1158310/969346b7534d84360e80d8997c3f58636140893f/capsule_184x69.jpg?t=1790873953]]></gameLogo>
+			<gameLogoSmall><![CDATA[https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1158310/969346b7534d84360e80d8997c3f58636140893f/capsule_184x69.jpg?t=1790873953]]></gameLogoSmall>
+			<hoursPlayed>3.7</hoursPlayed>
+			<hoursOnRecord>1,402</hoursOnRecord>
+			<statsName><![CDATA[1158310]]></statsName>
+		</mostPlayedGame>
+		<mostPlayedGame>
+			<gameName><![CDATA[HELLDIVERS™ 2]]></gameName>
+			<gameLink><![CDATA[https://steamcommunity.com/app/553850]]></gameLink>
+			<gameIcon><![CDATA[https://shared.fastly.steamstatic.com/community_assets/images/apps/553850/5236dcc5d02b1f7aa199eef56253d20be
+--- END BASE PROFILE XML ---
+
 status: 200
 encoding guessed by requests: UTF-8
 bytes length: 52724
