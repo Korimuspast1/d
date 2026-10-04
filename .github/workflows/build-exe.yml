@@ -2,6 +2,12 @@ name: Build Windows EXE
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - arena/01a10462-d
+    paths:
+      - 'steam-hours-viewer/**'
+      - '.github/workflows/build-exe.yml'
 
 permissions:
   contents: write
