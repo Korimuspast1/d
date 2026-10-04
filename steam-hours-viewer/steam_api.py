@@ -41,6 +41,13 @@ class ProfilePrivateError(SteamApiError):
     pass
 
 
+class SteamXmlUnavailableError(SteamApiError):
+    """Устаревший публичный XML API steamcommunity.com иногда вместо данных
+    отдаёт обычную HTML-страницу сайта (это нестабильность на стороне Steam,
+    не зависящая от настроек приватности профиля конкретного пользователя).
+    В этом случае нужно использовать официальный Steam Web API (с ключом)."""
+
+
 @dataclass
 class Game:
     appid: int
@@ -110,6 +117,16 @@ def _sanitize_xml_bytes(data: bytes) -> bytes:
     return data
 
 
+def _looks_like_html(data: bytes) -> bool:
+    head = data.lstrip()[:400].lower()
+    return (
+        head.startswith(b"<!doctype")
+        or head.startswith(b"<html")
+        or b"<head>" in head
+        or b"document.write" in head
+    )
+
+
 def _parse_games_xml(xml_data) -> List[Game]:
     if isinstance(xml_data, str):
         xml_data = xml_data.encode("utf-8", errors="replace")
@@ -117,6 +134,16 @@ def _parse_games_xml(xml_data) -> List[Game]:
     xml_data = xml_data.strip()
     if not xml_data:
         raise SteamApiError("Пустой ответ от Steam")
+
+    if _looks_like_html(xml_data):
+        raise SteamXmlUnavailableError(
+            "Steam Community вместо XML с данными вернул обычную HTML-страницу "
+            "сайта. Это известная нестабильность устаревшего публичного XML API "
+            "Steam и не связана с настройками приватности именно вашего профиля. "
+            "Самое надёжное решение — указать свой Steam Web API ключ в "
+            "настройках профиля (кнопка «Настройки профиля» -> получить ключ: "
+            "https://steamcommunity.com/dev/apikey)."
+        )
 
     try:
         root = ET.fromstring(xml_data)

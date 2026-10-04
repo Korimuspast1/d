@@ -140,6 +140,20 @@ def test_parse_games_xml_with_raw_bad_ampersand_bytes():
     assert games[0].name == "Test & Co"
 
 
+def test_parse_games_xml_html_instead_of_xml_raises_specific_error():
+    html = b"""<!DOCTYPE html>
+<html><head><script type="text/javascript">Object.seal && [1,2].map(function(x){});</script></head>
+<body>Sign In</body></html>"""
+    with pytest.raises(steam_api.SteamXmlUnavailableError):
+        steam_api._parse_games_xml(html)
+
+
+def test_looks_like_html_detection():
+    assert steam_api._looks_like_html(b"<!DOCTYPE html><html></html>")
+    assert steam_api._looks_like_html(b"<html><head></head></html>")
+    assert not steam_api._looks_like_html(b'<?xml version="1.0"?><response></response>')
+
+
 def test_sanitize_xml_bytes_escapes_bare_ampersand():
     data = b"<a>Tom & Jerry &amp; Friends</a>"
     cleaned = steam_api._sanitize_xml_bytes(data)
