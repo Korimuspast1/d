@@ -97,4 +97,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add steam-hours-viewer/release/ui_screenshot.png steam-hours-viewer/release/debug_log.txt steam-hours-viewer/release/debug_raw.xml steam-hours-viewer/release/debug_cleaned.xml
           git commit -m "[skip ci] Debug: UI screenshot + XML diagnostics from CI" || echo "nothing to commit"
-          git push origin HEAD:${{ github.ref_name }}
+          for i in 1 2 3 4 5 6 7 8; do
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break
+            git rebase --abort || true
+            sleep $((RANDOM % 8 + 3))
+          done
