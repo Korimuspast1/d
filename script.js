@@ -1,25 +1,29 @@
-// Formicarium 2D - pixel style
+// Formicarium 2D - pixel style with physics (sand falling) and ant simulation
+// ---------------------------------------------------------------
+// Canvas setup
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
-// Resize canvas to window
 function resizeCanvas() {
   canvas.width = window.innerWidth - 20;
-  canvas.height = window.innerHeight - 200 - 20; // leave space for UI
+  canvas.height = window.innerHeight - 200 - 20; // space for UI
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// World dimensions in cells
-const CELL = 10; // pixel size for each tile
+// Grid configuration
+const CELL = 10; // pixel size per cell
 const COLS = Math.floor(canvas.width / CELL);
 const ROWS = Math.floor(canvas.height / CELL);
 
 // Tile types: 'empty', 'sand', 'water', 'food'
 let world = new Array(ROWS).fill().map(() => new Array(COLS).fill('empty'));
 
-// Ants array
+// Ants: each ant has r,c and maybe direction
 let ants = [];
+
+// Physics flag
+let physicsEnabled = true;
 
 // UI references
 const btnSpawnAnt = document.getElementById('btn-spawn-ant');
@@ -27,10 +31,10 @@ const btnAddSand = document.getElementById('btn-add-sand');
 const btnAddWater = document.getElementById('btn-add-water');
 const btnAddFood = document.getElementById('btn-add-food');
 const btnClearAll = document.getElementById('btn-clear-all');
+const physicsToggle = document.getElementById('physics-toggle'); // will add later
 
 // ---- UI actions ----
 btnSpawnAnt.addEventListener('click', () => {
-  // spawn a ant at a random empty cell
   let empty = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
@@ -64,40 +68,68 @@ btnAddFood.addEventListener('click', () => {
 btnClearAll.addEventListener('click', () => {
   world = new Array(ROWS).fill().map(() => new Array(COLS).fill('empty'));
   ants = [];
-};
+  physicsEnabled = true;
+});
 
-// ---- Game logic ----
-function updateAnts() {
-  // move each ant randomly
-  for (const ant of ants) {
-    // random direction change
-    ant.dir = Math.floor(Math.random()*4);
-    const moves = [
-      {dr: -1, dc: 0}, // up
-      {dr: 1, dc: 0},  // down
-      {dr: 0, dc: -1}, // left
-      {dr: 0, dc: 1},  // right
-    ];
-    const m = moves[ant.dir];
-    let nr = ant.r + m.dr;
-    let nc = ant.c + m.dc;
-    // wrap around
-    if (nr < 0) nr = ROWS - 1;
-    if (nr >= ROWS) nr = 0;
-    if (nc < 0) nc = COLS - 1;
-    if (nc >= COLS) nc = 0;
-    // if target cell is empty or food, move there; otherwise stay
-    if (world[nr][nc] === 'empty' || world[nr][nc] === 'food') {
-      ant.r = nr; ant.c = nc;
-      // if food, remove food and maybe give score? just clear
-      if (world[nr][nc] === 'food') world[nr][nc] = 'empty';
+// Physics: sand gravity
+function applySandGravity() {
+  if (!physicsEnabled) return;
+  // iterate from bottom-1 up to 0 so that sand above can fall
+  for (let r = ROWS-2; r >= 0; r--) {
+    for (let c = 0; c < COLS; c++) {
+      if (world[r][c] !== 'sand') continue;
+      // check cell below
+      if (world[r+1][c] === 'empty') {
+        // swap
+        world[r+1][c] = 'sand';
+        world[r][c] = 'empty';
+        // after falling, we might need to check again; loop will handle
+      } else if (world[r+1][c] === 'sand' && c > 0 && c < COLS-1) {
+        // try to fall to side randomly
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const nc = c + side;
+        if (world[r+1][nc] === 'empty') {
+          world[r+1][nc] = 'sand';
+          world[r][c] = 'empty';
+        }
+      }
     }
-    // if sand or water, stay put? could allow moving through sand? keep simple.
   }
 }
 
+// Ant movement
+function updateAnts() {
+  const moves = [
+    {dr: -1, dc: 0}, // up
+    {dr: 1, dc: 0},  // down
+    {dr: 0, dc: -1}, // left
+    {dr: 0, dc: 1},  // right
+  ];
+  for (const ant of ants) {
+    // random direction change
+    ant.dir = Math.floor(Math.random()*4);
+    const m = moves[ant.dir];
+    let nr = ant.r + m.dr;
+    let nc = ant.c + m.dc;
+    // wrap around horizontally, but keep within rows vertically (bounce at walls)
+    if (nc < 0) nc = COLS - 1;
+    if (nc >= COLS) nc = 0;
+    // vertical wrapping optional; we'll just keep within bounds
+    if (nr < 0) nr = 0;
+    if (nr >= ROWS) nr = ROWS - 1;
+    // move if target cell is empty or food
+    if (world[nr][nc] === 'empty' || world[nr][nc] === 'food') {
+      ant.r = nr;
+      ant.c = nc;
+      if (world[nr][nc] === 'food') world[nr][nc] = 'empty';
+    }
+    // if target is sand or water, ant stays put (could be modified)
+  }
+}
+
+// Render everything
 function render() {
-  // clear with sand color background
+  // clear canvas with sand color background
   ctx.fillStyle = '#f0e68c';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -109,7 +141,7 @@ function render() {
         sand: '#e6c26e',
         water: '#4a90e2',
         food: '#ffd700',
-        empty: '#222222' // dark empty
+        empty: '#222222',
       }[tile] || '#222';
       ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
       // draw cell border
@@ -131,16 +163,18 @@ function render() {
   }
 }
 
+// Game loop
 function gameLoop() {
+  applySandGravity();
   updateAnts();
   render();
   requestAnimationFrame(gameLoop);
 }
 
-// start loop
+// Start loop
 gameLoop();
 
-// optional: mouse interaction to add tiles
+// Optional: mouse interaction to add sand
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -148,7 +182,21 @@ canvas.addEventListener('click', (e) => {
   const c = Math.floor(x / CELL);
   const r = Math.floor(y / CELL);
   if (c >= 0 && c < COLS && r >= 0 && r < ROWS) {
-    // toggle sand on click
     world[r][c] = 'sand';
   }
 });
+
+// physics toggle button handling (if exists)
+if (typeof physicsToggle !== 'undefined') {
+  physicsToggle.addEventListener('click', () => {
+    physicsEnabled = !physicsEnabled;
+  });
+}
+
+const physicsToggle = document.getElementById('physics-toggle');
+physicsToggle.addEventListener('click', () => {
+  physicsEnabled = !physicsEnabled;
+  physicsToggle.textContent = physicsEnabled ? 'Physics On' : 'Physics Off';
+});
+
+// End of script
